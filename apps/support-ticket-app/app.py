@@ -103,6 +103,107 @@ def init_database():
     cur.close()
     conn.close()
 
+
+def import_legacy_tickets():
+    """Copy pre-existing tickets (created before this app existed, e.g. via the
+    Lakebase SQL editor under a different role/schema) into this app's own
+    isolated schema. Non-destructive: source rows are left in place. A no-op
+    once the app schema already holds tickets."""
+    app_schema = get_schema_name()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # Skip if the app schema already has tickets
+        cur.execute(
+            pg_sql.SQL("SELECT COUNT(*) AS n FROM {}.tickets").format(
+                pg_sql.Identifier(app_schema)
+            )
+        )
+        if cur.fetchone()['n'] > 0:
+            return None
+
+        # Find schemas that hold a `tickets` table visible to this app's role
+        cur.execute("""
+            SELECT table_schema
+            FROM information_schema.tables
+            WHERE table_name = 'tickets' AND table_schema <> %s
+            ORDER BY CASE WHEN table_schema = 'public' THEN 0 ELSE 1 END, table_schema
+        """, (app_schema,))
+        candidates = [r['table_schema'] for r in cur.fetchall()]
+
+        app = pg_sql.Identifier(app_schema)
+        for src in candidates:
+            src_id = pg_sql.Identifier(src)
+            try:
+                cur.execute("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_schema = %s AND table_name = 'tickets'
+                """, (src,))
+                cols = {r['column_name'] for r in cur.fetchall()}
+                if not {'ticket_id', 'title', 'status', 'created_by', 'created_at'} <= cols:
+                    continue
+
+                cur.execute(pg_sql.SQL("""
+                    INSERT INTO {}.tickets (ticket_id, title, status, created_by, created_at)
+                    SELECT ticket_id, title, status, created_by, created_at
+                    FROM {}.tickets
+                """).format(app, src_id))
+                copied = cur.rowcount
+
+                cur.execute("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_schema = %s AND table_name = 'ticket_messages'
+                """, (src,))
+                mcols = {r['column_name'] for r in cur.fetchall()}
+                if {'ticket_id', 'message_text', 'author', 'created_at'} <= mcols:
+                    if 'message_id' in mcols:
+                        cur.execute(pg_sql.SQL("""
+                            INSERT INTO {}.ticket_messages
+                                (message_id, ticket_id, message_text, author, created_at)
+                            SELECT message_id, ticket_id, message_text, author, created_at
+                            FROM {}.ticket_messages
+                        """).format(app, src_id))
+                    else:
+                        cur.execute(pg_sql.SQL("""
+                            INSERT INTO {}.ticket_messages (ticket_id, message_text, author, created_at)
+                            SELECT ticket_id, message_text, author, created_at
+                            FROM {}.ticket_messages
+                        """).format(app, src_id))
+
+                # Advance the id sequences past the imported rows
+                cur.execute(
+                    pg_sql.SQL("""
+                        SELECT setval(pg_get_serial_sequence(%s, 'ticket_id'),
+                                      COALESCE((SELECT MAX(ticket_id) FROM {}.tickets), 0) + 1, false)
+                    """).format(app), (f"{app_schema}.tickets",)
+                )
+                cur.execute(
+                    pg_sql.SQL("""
+                        SELECT setval(pg_get_serial_sequence(%s, 'message_id'),
+                                      COALESCE((SELECT MAX(message_id) FROM {}.ticket_messages), 0) + 1, false)
+                    """).format(app), (f"{app_schema}.ticket_messages",)
+                )
+
+                conn.commit()
+                return {'copied': copied, 'schema': src}
+            except psycopg2.Error:
+                conn.rollback()
+                continue
+
+        pguser = os.environ.get('PGUSER', '<app database role>')
+        return {'blocked': True, 'message': (
+            "No pre-existing tickets could be imported. If you created `tickets` tables "
+            "in another schema (e.g. via the SQL editor), grant this app read access "
+            "and reload the page:\n\n"
+            f"```sql\nGRANT USAGE ON SCHEMA <your_schema> TO \"{pguser}\";\n"
+            f"GRANT SELECT ON ALL TABLES IN SCHEMA <your_schema> TO \"{pguser}\";\n```\n\n"
+            "The app expects columns: tickets(ticket_id, title, status, created_by, "
+            "created_at) and ticket_messages(ticket_id, message_text, author, created_at)."
+        )}
+    finally:
+        cur.close()
+        conn.close()
+
 # Database operations
 def get_all_tickets():
     """Fetch all tickets with message counts"""
@@ -264,6 +365,16 @@ def display_ticket_card(ticket):
 def main():
     # Initialize database schema and ticket tables
     init_database()
+
+    # One-time import of tickets created before the app existed
+    import_result = import_legacy_tickets()
+    if import_result and import_result.get('copied'):
+        st.success(
+            f"📥 Imported {import_result['copied']} existing ticket(s) "
+            f"from schema `{import_result['schema']}`."
+        )
+    elif import_result and import_result.get('blocked'):
+        st.warning(import_result['message'])
 
     inject_custom_css()
 
