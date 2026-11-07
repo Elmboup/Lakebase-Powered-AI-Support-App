@@ -1,0 +1,4 @@
+-c constraints.txt
+databricks-sdk>=0.157.0
+streamlit~=1.66.1
+psycopg[binary,pool]~=3.3.6
