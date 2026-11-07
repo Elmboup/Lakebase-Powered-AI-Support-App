@@ -5,61 +5,131 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Support Ticket System</title>
   <style>
-    * { box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #f6f7fb; color: #1f2430; }
-    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
-    a { color: #2563eb; }
-    .hero { background: linear-gradient(120deg, #6d28d9 0%, #2563eb 55%, #0ea5e9 100%); border-radius: 16px; padding: 26px 30px; color: #fff; margin-bottom: 20px; }
-    .hero h1 { margin: 0; font-size: 1.9rem; font-weight: 700; }
-    .hero p { margin: 6px 0 0; color: rgba(255, 255, 255, 0.85); font-size: 0.95rem; }
-    .flash { border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; font-size: 0.92rem; }
-    .flash-success { background: #d1fae5; color: #047857; }
-    .flash-error { background: #fee2e2; color: #b91c1c; }
-    .stats { display: flex; gap: 14px; margin: 0 0 18px; flex-wrap: wrap; }
-    .stat { flex: 1; min-width: 140px; background: #fff; border: 1px solid rgba(128, 128, 140, 0.25); border-radius: 12px; padding: 12px 16px; }
-    .stat .num { font-size: 1.5rem; font-weight: 700; }
-    .stat .lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; }
-    .filters { margin-bottom: 16px; font-size: 0.88rem; }
-    .filters a { margin-right: 10px; text-decoration: none; padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(128, 128, 140, 0.3); color: inherit; }
-    .filters a.active { background: #2563eb; color: #fff; border-color: #2563eb; }
-    .card { display: block; background: #fff; border: 1px solid rgba(128, 128, 140, 0.35); border-radius: 12px; padding: 14px 18px 12px; margin-bottom: 12px; text-decoration: none; color: inherit; transition: box-shadow 0.15s ease; }
-    .card:hover { box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15); }
-    .ticket-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .ticket-title { font-size: 1.02rem; font-weight: 600; }
-    .ticket-pills { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
-    .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; }
-    .pill-open { background: #fee2e2; color: #b91c1c; }
-    .pill-in_progress { background: #fef3c7; color: #b45309; }
-    .pill-resolved { background: #d1fae5; color: #047857; }
-    .pill-muted { background: rgba(128, 128, 140, 0.15); color: #4b5563; font-weight: 500; }
-    .ticket-footer { font-size: 0.78rem; color: #6b7280; margin-top: 8px; }
-    .panel { background: #fff; border: 1px solid rgba(128, 128, 140, 0.35); border-radius: 12px; padding: 20px 22px; margin-bottom: 20px; }
-    h2 { margin: 4px 0 16px; font-size: 1.25rem; }
-    label { display: block; font-size: 0.85rem; font-weight: 600; margin: 14px 0 4px; }
-    input, textarea, select { width: 100%; padding: 9px 12px; border: 1px solid rgba(128, 128, 140, 0.4); border-radius: 8px; font: inherit; background: #fff; }
-    textarea { min-height: 90px; resize: vertical; }
-    button { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; margin-top: 14px; }
-    button:hover { background: #1d4ed8; }
-    .msg { border: 1px solid rgba(128, 128, 140, 0.3); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; background: #fff; }
-    .msg .meta { font-size: 0.75rem; color: #6b7280; margin-bottom: 4px; }
-    .empty { text-align: center; padding: 48px 20px; color: #6b7280; }
-    .detail-grid { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
-    .detail-grid .stat { flex: 0 1 200px; }
-    .status-form { display: flex; gap: 10px; align-items: center; }
-    .status-form select { max-width: 240px; }
-    .status-form button { margin-top: 0; }
-    .backlink { font-size: 0.85rem; margin-bottom: 10px; display: inline-block; }
+    :root{
+      --bg:#f4f6fb; --card:#ffffff; --border:rgba(15,23,42,.08); --border-strong:rgba(15,23,42,.14);
+      --text:#0f172a; --muted:#64748b; --soft:#f1f5f9;
+      --brand:#4f46e5; --brand-2:#0ea5e9; --brand-ink:#eef2ff;
+      --open:#ef4444; --open-bg:#fee2e2;
+      --prog:#f59e0b; --prog-bg:#fef3c7;
+      --done:#10b981; --done-bg:#d1fae5;
+      --radius:14px; --shadow:0 1px 2px rgba(15,23,42,.05);
+      --shadow-lift:0 12px 28px rgba(15,23,42,.14);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;line-height:1.55}
+    a{color:var(--brand);text-decoration:none}
+    /* top navigation */
+    .topnav{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:22px;padding:12px 26px;background:rgba(255,255,255,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.05rem;color:var(--text)}
+    .brand .logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:1.05rem;background:linear-gradient(135deg,var(--brand),var(--brand-2));box-shadow:0 4px 12px rgba(79,70,229,.35)}
+    .navlinks{display:flex;gap:6px;margin-left:6px}
+    .navlinks a{padding:8px 14px;border-radius:999px;color:var(--muted);font-weight:600;font-size:.9rem}
+    .navlinks a:hover{background:var(--soft);color:var(--text)}
+    .navlinks a.active{background:var(--brand-ink);color:var(--brand)}
+    .nav-cta{margin-left:auto;background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;padding:9px 18px;border-radius:999px;font-weight:600;font-size:.9rem;box-shadow:0 4px 14px rgba(79,70,229,.3)}
+    .nav-cta:hover{filter:brightness(1.07)}
+    .container{max-width:1120px;margin:0 auto;padding:30px 24px 60px}
+    /* hero */
+    .hero{position:relative;overflow:hidden;border-radius:20px;padding:34px 38px;color:#fff;margin-bottom:26px;background:linear-gradient(120deg,#4338ca 0%,#4f46e5 45%,#0ea5e9 100%);box-shadow:0 14px 40px rgba(67,56,202,.35)}
+    .hero::after{content:"";position:absolute;inset:0;background:radial-gradient(420px 180px at 85% -20%,rgba(255,255,255,.28),transparent 60%),radial-gradient(300px 160px at 8% 130%,rgba(255,255,255,.15),transparent 55%)}
+    .hero h1{position:relative;margin:0;font-size:2rem;letter-spacing:-.02em}
+    .hero p{position:relative;margin:8px 0 0;color:rgba(255,255,255,.85);font-size:.98rem}
+    /* flashes */
+    .flash{display:flex;align-items:center;gap:10px;border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:.92rem;font-weight:500;border:1px solid}
+    .flash-success{background:var(--done-bg);color:#047857;border-color:#a7f3d0}
+    .flash-error{background:var(--open-bg);color:#b91c1c;border-color:#fecaca}
+    /* stats */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+    .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+    .stat .num{font-size:1.7rem;font-weight:800;letter-spacing:-.02em}
+    .stat .lbl{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin-top:2px}
+    .stat.open .num{color:var(--open)} .stat.progress .num{color:var(--prog)} .stat.resolved .num{color:var(--done)}
+    /* toolbar: search + chips */
+    .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:22px}
+    .search{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border-strong);border-radius:999px;padding:9px 16px;box-shadow:var(--shadow)}
+    .search input{border:none;outline:none;flex:1;font:inherit;background:transparent;color:var(--text)}
+    .chips{display:flex;gap:6px;flex-wrap:wrap}
+    .chip{padding:7px 14px;border-radius:999px;border:1px solid var(--border-strong);color:var(--muted);font-size:.85rem;font-weight:600;background:var(--card)}
+    .chip:hover{color:var(--text);border-color:var(--muted)}
+    .chip.active{background:var(--text);color:#fff;border-color:var(--text)}
+    .chip .count{opacity:.6;font-weight:500;margin-left:4px}
+    /* ticket grid */
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .tcard{position:relative;display:block;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;color:inherit;box-shadow:var(--shadow);transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+    .tcard:hover{transform:translateY(-3px);box-shadow:var(--shadow-lift);border-color:rgba(79,70,229,.35)}
+    .tcard .head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+    .tcard .title{font-weight:700;font-size:1.02rem;line-height:1.35}
+    .tcard .meta{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--muted);font-size:.8rem;margin-top:12px;align-items:center}
+    .tcard .meta .item{display:flex;gap:5px;align-items:center}
+    .tcard .arrow{position:absolute;right:16px;bottom:14px;color:var(--brand);opacity:0;transform:translateX(-4px);transition:all .16s ease;font-size:.85rem;font-weight:700}
+    .tcard:hover .arrow{opacity:1;transform:none}
+    /* badges */
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:.74rem;font-weight:700;letter-spacing:.02em;white-space:nowrap}
+    .badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+    .badge-open{background:var(--open-bg);color:#b91c1c}
+    .badge-in_progress{background:var(--prog-bg);color:#b45309}
+    .badge-resolved{background:var(--done-bg);color:#047857}
+    .badge-muted{background:var(--soft);color:var(--muted)}
+    /* panels & forms */
+    .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px 26px;box-shadow:var(--shadow);margin-bottom:20px}
+    .panel h3{margin:0 0 14px;font-size:1rem}
+    label{display:block;font-size:.82rem;font-weight:700;margin:16px 0 6px;color:var(--text)}
+    label .req{color:var(--open)}
+    .hint{font-size:.76rem;color:var(--muted);margin-top:4px}
+    input[type=text],input[type=email],textarea,select{width:100%;padding:11px 14px;border:1.5px solid var(--border-strong);border-radius:11px;font:inherit;background:var(--card);color:var(--text);transition:border-color .15s ease,box-shadow .15s ease}
+    input:focus,textarea:focus,select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 4px rgba(79,70,229,.12)}
+    textarea{min-height:110px;resize:vertical}
+    .btn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;border:none;padding:11px 22px;border-radius:999px;font:inherit;font-weight:700;font-size:.92rem;cursor:pointer;box-shadow:0 6px 16px rgba(79,70,229,.3);transition:filter .15s ease,transform .15s ease;text-decoration:none}
+    .btn:hover{filter:brightness(1.07);transform:translateY(-1px)}
+    .btn.ghost{background:var(--card);color:var(--text);border:1.5px solid var(--border-strong);box-shadow:none}
+    .btn.ghost:hover{border-color:var(--text);filter:none}
+    /* conversation */
+    .bubble-row{display:flex;gap:12px;margin-bottom:16px}
+    .bubble-row.me{flex-direction:row-reverse}
+    .avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:.9rem;flex-shrink:0}
+    .bubble{max-width:72%;padding:12px 16px;border-radius:16px;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow)}
+    .bubble-row.me .bubble{background:var(--brand-ink);border-color:rgba(79,70,229,.25)}
+    .bubble .who{font-size:.75rem;color:var(--muted);margin-bottom:4px;font-weight:600}
+    .bubble .txt{font-size:.93rem;white-space:pre-wrap}
+    .bubble .when{font-size:.7rem;color:var(--muted);margin-top:6px;opacity:.8}
+    /* segmented status */
+    .segmented{display:inline-flex;background:var(--soft);border-radius:999px;padding:4px;gap:4px;flex-wrap:wrap}
+    .segmented label{display:inline-flex;margin:0;cursor:pointer}
+    .segmented input{display:none}
+    .segmented .seg{padding:7px 16px;border-radius:999px;font-size:.84rem;font-weight:700;color:var(--muted);transition:all .15s ease}
+    .segmented input:checked + .seg{background:var(--card);color:var(--text);box-shadow:var(--shadow)}
+    /* misc */
+    .backlink{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;font-weight:600;color:var(--muted);margin-bottom:14px}
+    .backlink:hover{color:var(--brand)}
+    .empty{text-align:center;padding:64px 20px;background:var(--card);border:1px dashed var(--border-strong);border-radius:20px}
+    .empty .big{font-size:2.4rem;margin-bottom:10px}
+    .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+    .page-head h2{margin:0;font-size:1.5rem;letter-spacing:-.01em}
+    .page-head .sub{color:var(--muted);font-size:.9rem;margin-top:4px}
+    .meta-line{color:var(--muted);font-size:.85rem;margin:2px 0 18px}
+    .detail-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+    .detail-top h2{margin:0;font-size:1.45rem;letter-spacing:-.01em}
+    @media (max-width:820px){ .grid{grid-template-columns:1fr} .stats{grid-template-columns:repeat(2,1fr)} .container{padding:20px 16px 50px} }
   </style>
 </head>
 <body>
+<nav class="topnav">
+  <a class="brand" href="{{ url_for('index') }}"><span class="logo">🎫</span> Support Desk</a>
+  <div class="navlinks">
+    <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">Tickets</a>
+    <a href="{{ url_for('new_ticket') }}" class="{{ 'active' if request.endpoint == 'new_ticket' else '' }}">New Ticket</a>
+  </div>
+  <a class="nav-cta" href="{{ url_for('new_ticket') }}">＋ New ticket</a>
+</nav>
 <div class="container">
   <div class="hero">
-    <h1>🎫 Support Ticket System</h1>
+    <h1>Support Ticket System</h1>
     <p>Track, discuss, and resolve support tickets — powered by Databricks Apps &amp; Lakebase</p>
   </div>
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
-      <div class="flash flash-{{ category }}">{{ message }}</div>
+      <div class="flash">{{ '✅' if category == 'success' else '⚠️' }} {{ message }}</div>
     {% endfor %}
   {% endwith %}
   {% block content %}{% endblock %}

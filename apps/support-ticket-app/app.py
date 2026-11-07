@@ -10,7 +10,9 @@ import app_diagnostics  # noqa: E402
 app_diagnostics.install_diagnostics()
 # --- end diagnostics bootstrap ---
 
+import hashlib
 import os
+from datetime import datetime
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -285,10 +287,45 @@ def format_status_label(value):
     return value.replace("_", " ").title()
 
 
+@app.template_filter("timeago")
+def format_timeago(value):
+    """Render a timestamp as a short relative time like '3h ago'."""
+    seconds = (datetime.now() - value).total_seconds()
+    if seconds < 60:
+        return "just now"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{int(minutes)} min ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{int(hours)}h ago"
+    days = hours // 24
+    if days < 7:
+        return f"{int(days)}d ago"
+    return value.strftime("%Y-%m-%d")
+
+
+PALETTE = ["#4f46e5", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6"]
+
+
+@app.template_filter("author_color")
+def author_color(email):
+    """Pick a stable avatar color for an email address."""
+    h = int(hashlib.md5(str(email).encode()).hexdigest(), 16)
+    return PALETTE[h % len(PALETTE)]
+
+
+@app.template_filter("initial")
+def author_initial(email):
+    """First character of an email address for the avatar bubble."""
+    return (str(email).strip()[:1] or "?").upper()
+
+
 @app.route("/")
 def index():
-    """Ticket list with summary stats and an optional status filter."""
+    """Ticket list with summary stats, status filter, and title search."""
     status = request.args.get("status")
+    q = (request.args.get("q") or "").strip()
     tickets = get_all_tickets()
     stats = {
         "total": len(tickets),
@@ -298,8 +335,10 @@ def index():
     }
     if status in ("open", "in_progress", "resolved"):
         tickets = [t for t in tickets if t["status"] == status]
+    if q:
+        tickets = [t for t in tickets if q.lower() in str(t["title"]).lower()]
     return render_template(
-        "index.html", tickets=tickets, stats=stats, current_filter=status
+        "index.html", tickets=tickets, stats=stats, current_filter=status, q=q
     )
 
 

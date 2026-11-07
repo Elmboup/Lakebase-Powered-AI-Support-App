@@ -1,33 +1,59 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>All Support Tickets</h2>
+<div class="page-head">
+  <div>
+    <h2>Tickets</h2>
+    <div class="sub">{{ stats.total }} ticket{{ 's' if stats.total != 1 else '' }} · {{ stats.open }} open · {{ stats.in_progress }} in progress · {{ stats.resolved }} resolved</div>
+  </div>
+</div>
+
 {% if tickets %}
 <div class="stats">
-  <div class="stat"><div class="num">{{ stats.total }}</div><div class="lbl">Total tickets</div></div>
-  <div class="stat"><div class="num">{{ stats.open }}</div><div class="lbl">Open</div></div>
-  <div class="stat"><div class="num">{{ stats.in_progress }}</div><div class="lbl">In progress</div></div>
-  <div class="stat"><div class="num">{{ stats.resolved }}</div><div class="lbl">Resolved</div></div>
+  <div class="stat"><div class="num">{{ stats.total }}</div><div class="lbl">Total</div></div>
+  <div class="stat open"><div class="num">{{ stats.open }}</div><div class="lbl">Open</div></div>
+  <div class="stat progress"><div class="num">{{ stats.in_progress }}</div><div class="lbl">In progress</div></div>
+  <div class="stat resolved"><div class="num">{{ stats.resolved }}</div><div class="lbl">Resolved</div></div>
 </div>
-<div class="filters">
-  <a href="{{ url_for('index') }}" class="{{ 'active' if not current_filter else '' }}">All</a>
-  <a href="{{ url_for('index', status='open') }}" class="{{ 'active' if current_filter == 'open' else '' }}">Open</a>
-  <a href="{{ url_for('index', status='in_progress') }}" class="{{ 'active' if current_filter == 'in_progress' else '' }}">In progress</a>
-  <a href="{{ url_for('index', status='resolved') }}" class="{{ 'active' if current_filter == 'resolved' else '' }}">Resolved</a>
-  <a href="{{ url_for('new_ticket') }}" style="border-color: #2563eb; color: #2563eb; margin-left: 24px;">＋ New ticket</a>
-</div>
-{% for t in tickets %}
-<a class="card" href="{{ url_for('ticket_detail', ticket_id=t['ticket_id']) }}">
-  <div class="ticket-top">
-    <div class="ticket-title">{{ t['title'] }}</div>
-    <div class="ticket-pills">
-      <span class="pill pill-{{ t['status'] }}">{{ t['status'] | status_label }}</span>
-      <span class="pill pill-muted">💬 {{ t['message_count'] }} messages</span>
-    </div>
+{% endif %}
+
+<div class="toolbar">
+  <form class="search" method="get" action="{{ url_for('index') }}">
+    <span>🔍</span>
+    <input type="text" name="q" value="{{ q or '' }}" placeholder="Search tickets…">
+    {% if current_filter %}<input type="hidden" name="status" value="{{ current_filter }}">{% endif %}
+  </form>
+  <div class="chips">
+    <a class="chip {{ 'active' if not current_filter else '' }}" href="{{ url_for('index') }}">All <span class="count">{{ stats.total }}</span></a>
+    <a class="chip {{ 'active' if current_filter == 'open' else '' }}" href="{{ url_for('index', status='open') }}">Open <span class="count">{{ stats.open }}</span></a>
+    <a class="chip {{ 'active' if current_filter == 'in_progress' else '' }}" href="{{ url_for('index', status='in_progress') }}">In progress <span class="count">{{ stats.in_progress }}</span></a>
+    <a class="chip {{ 'active' if current_filter == 'resolved' else '' }}" href="{{ url_for('index', status='resolved') }}">Resolved <span class="count">{{ stats.resolved }}</span></a>
   </div>
-  <div class="ticket-footer">#{{ t['ticket_id'] }} · Created by {{ t['created_by'] }} on {{ t['created_at'] | dt }}</div>
-</a>
-{% endfor %}
+</div>
+
+{% if tickets %}
+<div class="grid">
+  {% for t in tickets %}
+  <a class="tcard" href="{{ url_for('ticket_detail', ticket_id=t['ticket_id']) }}">
+    <div class="head">
+      <div class="title">{{ t['title'] }}</div>
+      <span class="badge badge-{{ t['status'] }}"><span class="dot"></span>{{ t['status'] | status_label }}</span>
+    </div>
+    <div class="meta">
+      <span class="item">#{{ t['ticket_id'] }}</span>
+      <span class="item">👤 {{ t['created_by'] }}</span>
+      <span class="item">🕒 {{ t['created_at'] | timeago }}</span>
+      <span class="item">💬 {{ t['message_count'] }}</span>
+    </div>
+    <span class="arrow">Open →</span>
+  </a>
+  {% endfor %}
+</div>
 {% else %}
-<div class="empty">🗒️ No tickets found. <a href="{{ url_for('new_ticket') }}">Create your first ticket</a>!</div>
+<div class="empty">
+  <div class="big">🗒️</div>
+  <p style="margin:0 0 6px;font-weight:700;">No tickets found</p>
+  <p style="margin:0 0 18px;color:var(--muted);">{{ 'Try a different search or filter.' if q or current_filter else 'Create your first ticket to get started.' }}</p>
+  <a class="btn" href="{{ url_for('new_ticket') }}">＋ Create a ticket</a>
+</div>
 {% endif %}
 {% endblock %}
