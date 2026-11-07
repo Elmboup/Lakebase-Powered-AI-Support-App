@@ -3,7 +3,7 @@
 <div class="page-head">
   <div>
     <h2>Tickets</h2>
-    <div class="sub">{{ stats.total }} ticket{{ 's' if stats.total != 1 else '' }} · {{ stats.open }} open · {{ stats.in_progress }} in progress · {{ stats.resolved }} resolved</div>
+    <div class="sub">{{ stats.total }} ticket{{ 's' if stats.total != 1 else '' }} · {{ stats.open }} open · {{ stats.in_progress }} in progress · {{ stats.resolved }} resolved{% if stats.urgent %} · {{ stats.urgent }} urgent{% endif %}</div>
   </div>
 </div>
 
@@ -13,6 +13,10 @@
   <div class="stat open"><div class="num">{{ stats.open }}</div><div class="lbl">Open</div></div>
   <div class="stat progress"><div class="num">{{ stats.in_progress }}</div><div class="lbl">In progress</div></div>
   <div class="stat resolved"><div class="num">{{ stats.resolved }}</div><div class="lbl">Resolved</div></div>
+  <div class="stat urgent"><div class="num">{{ stats.urgent }}</div><div class="lbl">Urgent</div></div>
+  <div class="stat high"><div class="num">{{ stats.high }}</div><div class="lbl">High</div></div>
+  <div class="stat medium"><div class="num">{{ stats.medium }}</div><div class="lbl">Medium</div></div>
+  <div class="stat low"><div class="num">{{ stats.low }}</div><div class="lbl">Low</div></div>
 </div>
 {% endif %}
 
@@ -21,12 +25,18 @@
     <span>🔍</span>
     <input type="text" name="q" value="{{ q or '' }}" placeholder="Search tickets…">
     {% if current_filter %}<input type="hidden" name="status" value="{{ current_filter }}">{% endif %}
+    {% if current_priority %}<input type="hidden" name="priority" value="{{ current_priority }}">{% endif %}
   </form>
   <div class="chips">
-    <a class="chip {{ 'active' if not current_filter else '' }}" href="{{ url_for('index') }}">All <span class="count">{{ stats.total }}</span></a>
-    <a class="chip {{ 'active' if current_filter == 'open' else '' }}" href="{{ url_for('index', status='open') }}">Open <span class="count">{{ stats.open }}</span></a>
-    <a class="chip {{ 'active' if current_filter == 'in_progress' else '' }}" href="{{ url_for('index', status='in_progress') }}">In progress <span class="count">{{ stats.in_progress }}</span></a>
-    <a class="chip {{ 'active' if current_filter == 'resolved' else '' }}" href="{{ url_for('index', status='resolved') }}">Resolved <span class="count">{{ stats.resolved }}</span></a>
+    <a class="chip {{ 'active' if not current_filter else '' }}" href="{{ url_for('index', priority=current_priority, q=q or None) }}">All</a>
+    <a class="chip {{ 'active' if current_filter == 'open' else '' }}" href="{{ url_for('index', status='open', priority=current_priority, q=q or None) }}">Open <span class="count">{{ stats.open }}</span></a>
+    <a class="chip {{ 'active' if current_filter == 'in_progress' else '' }}" href="{{ url_for('index', status='in_progress', priority=current_priority, q=q or None) }}">In progress <span class="count">{{ stats.in_progress }}</span></a>
+    <a class="chip {{ 'active' if current_filter == 'resolved' else '' }}" href="{{ url_for('index', status='resolved', priority=current_priority, q=q or None) }}">Resolved <span class="count">{{ stats.resolved }}</span></a>
+    <a class="chip {{ 'active' if not current_priority else '' }}" href="{{ url_for('index', status=current_filter, q=q or None) }}">Any priority</a>
+    <a class="chip {{ 'active' if current_priority == 'urgent' else '' }}" href="{{ url_for('index', status=current_filter, priority='urgent', q=q or None) }}">Urgent <span class="count">{{ stats.urgent }}</span></a>
+    <a class="chip {{ 'active' if current_priority == 'high' else '' }}" href="{{ url_for('index', status=current_filter, priority='high', q=q or None) }}">High <span class="count">{{ stats.high }}</span></a>
+    <a class="chip {{ 'active' if current_priority == 'medium' else '' }}" href="{{ url_for('index', status=current_filter, priority='medium', q=q or None) }}">Medium <span class="count">{{ stats.medium }}</span></a>
+    <a class="chip {{ 'active' if current_priority == 'low' else '' }}" href="{{ url_for('index', status=current_filter, priority='low', q=q or None) }}">Low <span class="count">{{ stats.low }}</span></a>
   </div>
 </div>
 
@@ -36,7 +46,10 @@
   <a class="tcard" href="{{ url_for('ticket_detail', ticket_id=t['ticket_id']) }}">
     <div class="head">
       <div class="title">{{ t['title'] }}</div>
-      <span class="badge badge-{{ t['status'] }}"><span class="dot"></span>{{ t['status'] | status_label }}</span>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+        <span class="badge badge-{{ t['status'] }}"><span class="dot"></span>{{ t['status'] | status_label }}</span>
+        <span class="badge badge-{{ t.get('priority') or 'medium' }}">⚡ {{ (t.get('priority') or 'medium') | status_label }}</span>
+      </div>
     </div>
     <div class="meta">
       <span class="item">#{{ t['ticket_id'] }}</span>
@@ -52,7 +65,7 @@
 <div class="empty">
   <div class="big">🗒️</div>
   <p style="margin:0 0 6px;font-weight:700;">No tickets found</p>
-  <p style="margin:0 0 18px;color:var(--muted);">{{ 'Try a different search or filter.' if q or current_filter else 'Create your first ticket to get started.' }}</p>
+  <p style="margin:0 0 18px;color:var(--muted);">{{ 'Try a different search, status, or priority filter.' if q or current_filter or current_priority else 'Create your first ticket to get started.' }}</p>
   <a class="btn" href="{{ url_for('new_ticket') }}">＋ Create a ticket</a>
 </div>
 {% endif %}

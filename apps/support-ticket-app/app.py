@@ -12,6 +12,7 @@ app_diagnostics.install_diagnostics()
 
 import hashlib
 import os
+import re
 from datetime import datetime
 
 import psycopg2
@@ -93,6 +94,13 @@ def init_database():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """).format(schema, schema)
+    )
+    # Migration: tickets created by older app versions lack the priority column
+    cur.execute(
+        pg_sql.SQL("""
+            ALTER TABLE {}.tickets
+            ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'medium'
+        """).format(schema)
     )
     conn.commit()
     cur.close()
@@ -230,15 +238,15 @@ def get_ticket_messages(ticket_id):
     conn.close()
     return messages
 
-def create_ticket(title, created_by):
+def create_ticket(title, created_by, priority="medium"):
     """Create a new support ticket"""
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO tickets (title, status, created_by)
-        VALUES (%s, 'open', %s)
+        INSERT INTO tickets (title, status, created_by, priority)
+        VALUES (%s, 'open', %s, %s)
         RETURNING ticket_id
-    """, (title, created_by))
+    """, (title, created_by, priority))
     ticket_id = cur.fetchone()['ticket_id']
     conn.commit()
     cur.close()
@@ -270,6 +278,32 @@ def update_ticket_status(ticket_id, new_status):
     cur.close()
     conn.close()
 
+
+def update_ticket_priority(ticket_id, new_priority):
+    """Update the priority of a ticket"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE tickets
+        SET priority = %s
+        WHERE ticket_id = %s
+    """, (new_priority, ticket_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def delete_ticket(ticket_id):
+    """Delete a ticket (its messages cascade) and report how many rows went."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM tickets WHERE ticket_id = %s", (ticket_id,))
+    deleted = cur.rowcount
+    conn.commit()
+    cur.close()
+    conn.close()
+    return deleted
+
 # Flask application
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24).hex())
@@ -284,7 +318,7 @@ def format_datetime(value):
 @app.template_filter("status_label")
 def format_status_label(value):
     """Humanize a status value like 'in_progress' -> 'In Progress'."""
-    return value.replace("_", " ").title()
+    return str(value or "").replace("_", " ").title()
 
 
 @app.template_filter("timeago")
@@ -321,10 +355,16 @@ def author_initial(email):
     return (str(email).strip()[:1] or "?").upper()
 
 
+STATUSES = ("open", "in_progress", "resolved")
+PRIORITIES = ("low", "medium", "high", "urgent")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
 @app.route("/")
 def index():
-    """Ticket list with summary stats, status filter, and title search."""
+    """Ticket list with stats, status/priority filters, and title search."""
     status = request.args.get("status")
+    priority = request.args.get("priority")
     q = (request.args.get("q") or "").strip()
     tickets = get_all_tickets()
     stats = {
@@ -332,13 +372,20 @@ def index():
         "open": sum(1 for t in tickets if t["status"] == "open"),
         "in_progress": sum(1 for t in tickets if t["status"] == "in_progress"),
         "resolved": sum(1 for t in tickets if t["status"] == "resolved"),
+        "urgent": sum(1 for t in tickets if t.get("priority") == "urgent"),
+        "high": sum(1 for t in tickets if t.get("priority") == "high"),
+        "medium": sum(1 for t in tickets if t.get("priority") == "medium"),
+        "low": sum(1 for t in tickets if t.get("priority") == "low"),
     }
-    if status in ("open", "in_progress", "resolved"):
+    if status in STATUSES:
         tickets = [t for t in tickets if t["status"] == status]
+    if priority in PRIORITIES:
+        tickets = [t for t in tickets if t.get("priority") == priority]
     if q:
         tickets = [t for t in tickets if q.lower() in str(t["title"]).lower()]
     return render_template(
-        "index.html", tickets=tickets, stats=stats, current_filter=status, q=q
+        "index.html", tickets=tickets, stats=stats, current_filter=status,
+        current_priority=priority, q=q
     )
 
 
@@ -349,20 +396,28 @@ def new_ticket():
         title = (request.form.get("title") or "").strip()
         created_by = (request.form.get("created_by") or "").strip()
         initial_message = (request.form.get("initial_message") or "").strip()
+        priority = request.form.get("priority") or "medium"
 
-        if not title or not created_by:
-            flash("Please fill in all required fields (marked with *).", "error")
-        elif "@" not in created_by:
-            flash("Please enter a valid email address.", "error")
+        if not title:
+            flash("Please give your ticket a short, descriptive title.", "error")
+        elif len(title) > 255:
+            flash("Titles are limited to 255 characters — try a shorter summary.", "error")
+        elif not created_by:
+            flash("Please enter your email address so we can follow up.", "error")
+        elif not EMAIL_RE.match(created_by):
+            flash("That email address doesn't look right (e.g. you@company.com).", "error")
+        elif priority not in PRIORITIES:
+            flash("Please pick a valid priority.", "error")
         else:
             try:
-                ticket_id = create_ticket(title, created_by)
+                ticket_id = create_ticket(title, created_by, priority)
                 if initial_message:
                     add_message(ticket_id, initial_message, created_by)
                 flash(f"Ticket #{ticket_id} created successfully!", "success")
                 return redirect(url_for("ticket_detail", ticket_id=ticket_id))
-            except Exception as e:
-                flash(f"Error creating ticket: {e}", "error")
+            except Exception:
+                app.logger.exception("Failed to create ticket")
+                flash("We couldn't create your ticket just now — please try again.", "error")
 
     return render_template("new_ticket.html", form=request.form)
 
@@ -379,13 +434,20 @@ def ticket_detail(ticket_id):
     return render_template("ticket_detail.html", ticket=ticket, messages=messages)
 
 
-@app.route("/tickets/<int:ticket_id>/status", methods=["POST"])
-def update_status(ticket_id):
-    """Update the status of a ticket."""
+@app.route("/tickets/<int:ticket_id>/update", methods=["POST"])
+def update_ticket(ticket_id):
+    """Update a ticket's status and/or priority."""
     new_status = request.form.get("status")
-    if new_status in ("open", "in_progress", "resolved"):
-        update_ticket_status(ticket_id, new_status)
-        flash(f"Status updated to: {new_status.replace('_', ' ')}.", "success")
+    new_priority = request.form.get("priority")
+    try:
+        if new_status in STATUSES:
+            update_ticket_status(ticket_id, new_status)
+        if new_priority in PRIORITIES:
+            update_ticket_priority(ticket_id, new_priority)
+        flash("Ticket updated.", "success")
+    except Exception:
+        app.logger.exception("Failed to update ticket %s", ticket_id)
+        flash("We couldn't update the ticket just now — please try again.", "error")
     return redirect(url_for("ticket_detail", ticket_id=ticket_id))
 
 
@@ -395,18 +457,38 @@ def add_ticket_message(ticket_id):
     message_text = (request.form.get("message_text") or "").strip()
     author = (request.form.get("author") or "").strip()
 
-    if not message_text or not author:
-        flash("Please fill in all required fields.", "error")
-    elif "@" not in author:
-        flash("Please enter a valid email address.", "error")
+    if not message_text:
+        flash("Please write a message before sending.", "error")
+    elif len(message_text) > 1000:
+        flash("Messages are limited to 1,000 characters.", "error")
+    elif not author:
+        flash("Please enter your email address.", "error")
+    elif not EMAIL_RE.match(author):
+        flash("That email address doesn't look right (e.g. you@company.com).", "error")
     else:
         try:
             add_message(ticket_id, message_text, author)
             flash("Message added successfully!", "success")
-        except Exception as e:
-            flash(f"Error adding message: {e}", "error")
+        except Exception:
+            app.logger.exception("Failed to add message to ticket %s", ticket_id)
+            flash("We couldn't add your message just now — please try again.", "error")
 
     return redirect(url_for("ticket_detail", ticket_id=ticket_id))
+
+
+@app.route("/tickets/<int:ticket_id>/delete", methods=["POST"])
+def delete_ticket_route(ticket_id):
+    """Delete a ticket (and, by cascade, its messages) after user confirmation."""
+    try:
+        deleted = delete_ticket(ticket_id)
+        if deleted:
+            flash(f"Ticket #{ticket_id} was deleted.", "success")
+        else:
+            flash("That ticket no longer exists.", "error")
+    except Exception:
+        app.logger.exception("Failed to delete ticket %s", ticket_id)
+        flash("We couldn't delete the ticket just now — please try again.", "error")
+    return redirect(url_for("index"))
 
 
 # Initialize the database schema and import any pre-existing tickets at startup.

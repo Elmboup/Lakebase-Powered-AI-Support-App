@@ -14,6 +14,14 @@
     <label for="created_by">Your email <span class="req">*</span></label>
     <input type="email" id="created_by" name="created_by" maxlength="100" required placeholder="you@company.com" value="{{ form.get('created_by', '') }}">
     <div class="hint">We'll use this to follow up on your ticket.</div>
+    <label>Priority</label>
+    <div class="segmented">
+      <label><input type="radio" name="priority" value="low" {{ 'checked' if form.get('priority', 'medium') == 'low' else '' }}><span class="seg">Low</span></label>
+      <label><input type="radio" name="priority" value="medium" {{ 'checked' if form.get('priority', 'medium') == 'medium' else '' }}><span class="seg">Medium</span></label>
+      <label><input type="radio" name="priority" value="high" {{ 'checked' if form.get('priority', 'medium') == 'high' else '' }}><span class="seg">High</span></label>
+      <label><input type="radio" name="priority" value="urgent" {{ 'checked' if form.get('priority', 'medium') == 'urgent' else '' }}><span class="seg">Urgent</span></label>
+    </div>
+    <div class="hint">How urgently does this need attention? Medium is a safe default.</div>
     <label for="initial_message">Describe the issue</label>
     <textarea id="initial_message" name="initial_message" maxlength="1000" placeholder="What happened? What did you expect? Any error messages?">{{ form.get('initial_message', '') }}</textarea>
     <div class="hint">Optional, but the more detail you share, the faster we can help.</div>

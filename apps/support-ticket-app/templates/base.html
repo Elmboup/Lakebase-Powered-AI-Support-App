@@ -112,6 +112,24 @@
     .meta-line{color:var(--muted);font-size:.85rem;margin:2px 0 18px}
     .detail-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:6px}
     .detail-top h2{margin:0;font-size:1.45rem;letter-spacing:-.01em}
+    /* priority badges */
+    .badge-low{background:var(--soft);color:#475569}
+    .badge-medium{background:#e0f2fe;color:#0369a1}
+    .badge-high{background:#ffedd5;color:#c2410c}
+    .badge-urgent{background:#fee2e2;color:#b91c1c;box-shadow:inset 0 0 0 1px #fca5a5}
+    .stat.urgent .num{color:#dc2626} .stat.high .num{color:#ea580c} .stat.medium .num{color:#0284c7} .stat.low .num{color:#64748b}
+    /* danger button + modal */
+    .btn.danger{background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 6px 16px rgba(239,68,68,.3)}
+    .btn.danger:hover{filter:brightness(1.07)}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:50;backdrop-filter:blur(2px)}
+    .modal-backdrop.open{display:flex}
+    .modal{background:var(--card);border-radius:18px;padding:28px;max-width:440px;width:calc(100% - 40px);box-shadow:0 24px 60px rgba(15,23,42,.3);animation:pop .18s ease}
+    @keyframes pop{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
+    .modal h4{margin:0 0 8px;font-size:1.1rem}
+    .modal p{margin:0 0 20px;color:var(--muted);font-size:.92rem}
+    .modal .row{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+    .tcard{animation:fadein .25s ease both}
+    @keyframes fadein{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
     @media (max-width:820px){ .grid{grid-template-columns:1fr} .stats{grid-template-columns:repeat(2,1fr)} .container{padding:20px 16px 50px} }
   </style>
 </head>
@@ -136,5 +154,16 @@
   {% endwith %}
   {% block content %}{% endblock %}
 </div>
+<script>
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.addEventListener('click', function(e){
+  var m = e.target.closest('.modal-backdrop');
+  if (m && (e.target === m || e.target.closest('[data-close]'))) m.classList.remove('open');
+});
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop.open').forEach(function(m){m.classList.remove('open')});
+});
+</script>
 </body>
 </html>

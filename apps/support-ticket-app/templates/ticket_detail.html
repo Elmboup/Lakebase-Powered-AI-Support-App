@@ -4,19 +4,31 @@
 <div class="detail-top">
   <h2>{{ ticket['title'] }}</h2>
   <span class="badge badge-{{ ticket['status'] }}"><span class="dot"></span>{{ ticket['status'] | status_label }}</span>
+  <span class="badge badge-{{ ticket.get('priority') or 'medium' }}">⚡ {{ (ticket.get('priority') or 'medium') | status_label }}</span>
 </div>
 <div class="meta-line">#{{ ticket['ticket_id'] }} · 👤 {{ ticket['created_by'] }} · 🕒 created {{ ticket['created_at'] | timeago }} · 💬 {{ ticket['message_count'] }} message{{ 's' if ticket['message_count'] != 1 else '' }}</div>
 
 <div class="panel">
-  <h3>⚡ Update status</h3>
-  <form method="post" action="{{ url_for('update_status', ticket_id=ticket['ticket_id']) }}">
-    <div class="segmented">
-      <label><input type="radio" name="status" value="open" {{ 'checked' if ticket['status'] == 'open' else '' }}><span class="seg">🔴 Open</span></label>
-      <label><input type="radio" name="status" value="in_progress" {{ 'checked' if ticket['status'] == 'in_progress' else '' }}><span class="seg">🟡 In progress</span></label>
-      <label><input type="radio" name="status" value="resolved" {{ 'checked' if ticket['status'] == 'resolved' else '' }}><span class="seg">🟢 Resolved</span></label>
-    </div>
-    <div style="margin-top: 18px;">
-      <button class="btn" type="submit">Save status</button>
+  <h3>⚙️ Manage ticket</h3>
+  <form method="post" action="{{ url_for('update_ticket', ticket_id=ticket['ticket_id']) }}">
+    <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end;">
+      <div>
+        <label style="margin-top:0;">Status</label>
+        <div class="segmented">
+          <label><input type="radio" name="status" value="open" {{ 'checked' if ticket['status'] == 'open' else '' }}><span class="seg">🔴 Open</span></label>
+          <label><input type="radio" name="status" value="in_progress" {{ 'checked' if ticket['status'] == 'in_progress' else '' }}><span class="seg">🟡 In progress</span></label>
+          <label><input type="radio" name="status" value="resolved" {{ 'checked' if ticket['status'] == 'resolved' else '' }}><span class="seg">🟢 Resolved</span></label>
+        </div>
+      </div>
+      <div>
+        <label style="margin-top:0;">Priority</label>
+        <select name="priority" style="width:auto;min-width:140px;">
+          {% for p in ['low', 'medium', 'high', 'urgent'] %}
+          <option value="{{ p }}" {{ 'selected' if (ticket.get('priority') or 'medium') == p else '' }}>{{ p | status_label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn" type="submit">Save changes</button>
     </div>
   </form>
 </div>
@@ -48,5 +60,24 @@
       <button class="btn" type="submit">Send message</button>
     </div>
   </form>
+</div>
+
+<div class="panel">
+  <h3>🗑️ Danger zone</h3>
+  <p style="color: var(--muted); font-size: .88rem; margin: 0 0 16px;">Deleting this ticket permanently removes it and its {{ ticket['message_count'] }} message{{ 's' if ticket['message_count'] != 1 else '' }}. This cannot be undone.</p>
+  <button class="btn danger" type="button" onclick="openModal('delete-modal')">Delete this ticket…</button>
+</div>
+
+<div class="modal-backdrop" id="delete-modal">
+  <div class="modal">
+    <h4>Delete ticket #{{ ticket['ticket_id'] }}?</h4>
+    <p>“{{ ticket['title'] }}” and all of its messages will be permanently deleted. This action cannot be undone.</p>
+    <div class="row">
+      <button class="btn ghost" type="button" data-close>Cancel</button>
+      <form method="post" action="{{ url_for('delete_ticket_route', ticket_id=ticket['ticket_id']) }}" style="margin:0;">
+        <button class="btn danger" type="submit">Yes, delete it</button>
+      </form>
+    </div>
+  </div>
 </div>
 {% endblock %}
