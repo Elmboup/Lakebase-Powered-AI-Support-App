@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>All Support Tickets</h2>
+{% if tickets %}
+<div class="stats">
+  <div class="stat"><div class="num">{{ stats.total }}</div><div class="lbl">Total tickets</div></div>
+  <div class="stat"><div class="num">{{ stats.open }}</div><div class="lbl">Open</div></div>
+  <div class="stat"><div class="num">{{ stats.in_progress }}</div><div class="lbl">In progress</div></div>
+  <div class="stat"><div class="num">{{ stats.resolved }}</div><div class="lbl">Resolved</div></div>
+</div>
+<div class="filters">
+  <a href="{{ url_for('index') }}" class="{{ 'active' if not current_filter else '' }}">All</a>
+  <a href="{{ url_for('index', status='open') }}" class="{{ 'active' if current_filter == 'open' else '' }}">Open</a>
+  <a href="{{ url_for('index', status='in_progress') }}" class="{{ 'active' if current_filter == 'in_progress' else '' }}">In progress</a>
+  <a href="{{ url_for('index', status='resolved') }}" class="{{ 'active' if current_filter == 'resolved' else '' }}">Resolved</a>
+  <a href="{{ url_for('new_ticket') }}" style="border-color: #2563eb; color: #2563eb; margin-left: 24px;">＋ New ticket</a>
+</div>
+{% for t in tickets %}
+<a class="card" href="{{ url_for('ticket_detail', ticket_id=t['ticket_id']) }}">
+  <div class="ticket-top">
+    <div class="ticket-title">{{ t['title'] }}</div>
+    <div class="ticket-pills">
+      <span class="pill pill-{{ t['status'] }}">{{ t['status'] | status_label }}</span>
+      <span class="pill pill-muted">💬 {{ t['message_count'] }} messages</span>
+    </div>
+  </div>
+  <div class="ticket-footer">#{{ t['ticket_id'] }} · Created by {{ t['created_by'] }} on {{ t['created_at'] | dt }}</div>
+</a>
+{% endfor %}
+{% else %}
+<div class="empty">🗒️ No tickets found. <a href="{{ url_for('new_ticket') }}">Create your first ticket</a>!</div>
+{% endif %}
+{% endblock %}

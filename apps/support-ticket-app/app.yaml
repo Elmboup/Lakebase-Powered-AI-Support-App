@@ -1,4 +1,4 @@
-command: ["streamlit", "run", "app.py"]
+command: ["python", "app.py"]
 env:
   - name: PGENDPOINT
     valueFrom: support-app-db

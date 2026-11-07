@@ -10,21 +10,14 @@ import app_diagnostics  # noqa: E402
 app_diagnostics.install_diagnostics()
 # --- end diagnostics bootstrap ---
 
-import streamlit as st
+import os
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from psycopg2 import sql as pg_sql
-import os
-from datetime import datetime
 from databricks import sdk
-import html as html_lib
 
-# Page configuration
-st.set_page_config(
-    page_title="Support Ticket System",
-    page_icon="🎫",
-    layout="wide"
-)
+from flask import Flask, render_template, request, redirect, url_for, flash
 
 # Database connection setup
 workspace_client = sdk.WorkspaceClient()
@@ -275,269 +268,130 @@ def update_ticket_status(ticket_id, new_status):
     cur.close()
     conn.close()
 
-# UI Components
-def inject_custom_css():
-    """Inject the app's custom stylesheet."""
-    st.markdown(
-        """
-        <style>
-        /* Hero banner */
-        .hero {
-            background: linear-gradient(120deg, #6d28d9 0%, #2563eb 55%, #0ea5e9 100%);
-            border-radius: 16px;
-            padding: 26px 30px;
-            color: #fff;
-            margin-bottom: 8px;
-        }
-        .hero h1 { color: #fff; font-size: 1.9rem; font-weight: 700; margin: 0; }
-        .hero p { color: rgba(255, 255, 255, 0.85); margin: 6px 0 0; font-size: 0.95rem; }
+# Flask application
+app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24).hex())
 
-        /* Ticket cards */
-        .ticket-card {
-            border: 1px solid rgba(128, 128, 140, 0.35);
-            border-radius: 12px;
-            padding: 14px 18px 12px;
-            margin-bottom: 4px;
-            transition: box-shadow 0.15s ease, border-color 0.15s ease;
-        }
-        .ticket-card:hover {
-            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
-            border-color: rgba(128, 128, 140, 0.6);
-        }
-        .ticket-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-        .ticket-title { font-size: 1.02rem; font-weight: 600; }
-        .ticket-pills { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
-        .pill {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 999px;
-            font-size: 0.72rem;
-            font-weight: 600;
-            letter-spacing: 0.02em;
-        }
-        .pill-open { background: #fee2e2; color: #b91c1c; }
-        .pill-in_progress { background: #fef3c7; color: #b45309; }
-        .pill-resolved { background: #d1fae5; color: #047857; }
-        .pill-muted { background: rgba(128, 128, 140, 0.15); color: inherit; font-weight: 500; }
-        .ticket-footer { font-size: 0.78rem; opacity: 0.75; margin-top: 8px; }
 
-        /* Soften Streamlit widgets */
-        div[data-testid="stMetric"] {
-            background: rgba(128, 128, 140, 0.08);
-            border: 1px solid rgba(128, 128, 140, 0.22);
-            border-radius: 12px;
-            padding: 12px 10px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
+@app.template_filter("dt")
+def format_datetime(value):
+    """Render a timestamp as YYYY-MM-DD HH:MM."""
+    return value.strftime("%Y-%m-%d %H:%M")
+
+
+@app.template_filter("status_label")
+def format_status_label(value):
+    """Humanize a status value like 'in_progress' -> 'In Progress'."""
+    return value.replace("_", " ").title()
+
+
+@app.route("/")
+def index():
+    """Ticket list with summary stats and an optional status filter."""
+    status = request.args.get("status")
+    tickets = get_all_tickets()
+    stats = {
+        "total": len(tickets),
+        "open": sum(1 for t in tickets if t["status"] == "open"),
+        "in_progress": sum(1 for t in tickets if t["status"] == "in_progress"),
+        "resolved": sum(1 for t in tickets if t["status"] == "resolved"),
+    }
+    if status in ("open", "in_progress", "resolved"):
+        tickets = [t for t in tickets if t["status"] == status]
+    return render_template(
+        "index.html", tickets=tickets, stats=stats, current_filter=status
     )
 
 
-STATUS_META = {
-    'open': ('Open', '🔴', 'pill-open'),
-    'in_progress': ('In Progress', '🟡', 'pill-in_progress'),
-    'resolved': ('Resolved', '🟢', 'pill-resolved'),
-}
+@app.route("/tickets/new", methods=["GET", "POST"])
+def new_ticket():
+    """Create a new support ticket."""
+    if request.method == "POST":
+        title = (request.form.get("title") or "").strip()
+        created_by = (request.form.get("created_by") or "").strip()
+        initial_message = (request.form.get("initial_message") or "").strip()
+
+        if not title or not created_by:
+            flash("Please fill in all required fields (marked with *).", "error")
+        elif "@" not in created_by:
+            flash("Please enter a valid email address.", "error")
+        else:
+            try:
+                ticket_id = create_ticket(title, created_by)
+                if initial_message:
+                    add_message(ticket_id, initial_message, created_by)
+                flash(f"Ticket #{ticket_id} created successfully!", "success")
+                return redirect(url_for("ticket_detail", ticket_id=ticket_id))
+            except Exception as e:
+                flash(f"Error creating ticket: {e}", "error")
+
+    return render_template("new_ticket.html", form=request.form)
 
 
-def display_ticket_card(ticket):
-    """Render a ticket as a styled card, returning the HTML markup."""
-    label, icon, pill_class = STATUS_META.get(
-        ticket['status'], (ticket['status'], '⚪', 'pill-muted')
-    )
-    title = html_lib.escape(str(ticket['title']))
-    created_by = html_lib.escape(str(ticket['created_by']))
-    return f"""
-    <div class="ticket-card">
-        <div class="ticket-top">
-            <div class="ticket-title">{icon} {title}</div>
-            <div class="ticket-pills">
-                <span class="pill {pill_class}">{html_lib.escape(label)}</span>
-                <span class="pill pill-muted">💬 {ticket['message_count']} messages</span>
-            </div>
-        </div>
-        <div class="ticket-footer">#{ticket['ticket_id']} · Created by {created_by} on {ticket['created_at'].strftime('%Y-%m-%d %H:%M')}</div>
-    </div>
-    """
+@app.route("/tickets/<int:ticket_id>")
+def ticket_detail(ticket_id):
+    """Show a ticket's details, status form, and conversation."""
+    tickets = get_all_tickets()
+    ticket = next((t for t in tickets if t["ticket_id"] == ticket_id), None)
+    if ticket is None:
+        flash("Ticket not found.", "error")
+        return redirect(url_for("index"))
+    messages = get_ticket_messages(ticket_id)
+    return render_template("ticket_detail.html", ticket=ticket, messages=messages)
 
-# Main application
-def main():
-    # Initialize database schema and ticket tables
-    init_database()
 
-    # One-time import of tickets created before the app existed
-    import_result = import_legacy_tickets()
-    if import_result and import_result.get('copied'):
-        st.success(
-            f"📥 Imported {import_result['copied']} existing ticket(s) "
-            f"from schema `{import_result['schema']}`."
-        )
-    elif import_result and import_result.get('blocked'):
-        st.warning(import_result['message'])
+@app.route("/tickets/<int:ticket_id>/status", methods=["POST"])
+def update_status(ticket_id):
+    """Update the status of a ticket."""
+    new_status = request.form.get("status")
+    if new_status in ("open", "in_progress", "resolved"):
+        update_ticket_status(ticket_id, new_status)
+        flash(f"Status updated to: {new_status.replace('_', ' ')}.", "success")
+    return redirect(url_for("ticket_detail", ticket_id=ticket_id))
 
-    inject_custom_css()
 
-    st.markdown(
-        """
-        <div class="hero">
-            <h1>🎫 Support Ticket System</h1>
-            <p>Track, discuss, and resolve support tickets — powered by Databricks Apps &amp; Lakebase</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    
-    # Sidebar for actions
-    with st.sidebar:
-        st.header("Actions")
-        action = st.radio(
-            "Choose an action:",
-            ["View All Tickets", "Create New Ticket", "View Ticket Details"]
-        )
-    
-    # View All Tickets
-    if action == "View All Tickets":
-        st.header("All Support Tickets")
+@app.route("/tickets/<int:ticket_id>/messages", methods=["POST"])
+def add_ticket_message(ticket_id):
+    """Add a message to a ticket's conversation."""
+    message_text = (request.form.get("message_text") or "").strip()
+    author = (request.form.get("author") or "").strip()
 
-        tickets = get_all_tickets()
+    if not message_text or not author:
+        flash("Please fill in all required fields.", "error")
+    elif "@" not in author:
+        flash("Please enter a valid email address.", "error")
+    else:
+        try:
+            add_message(ticket_id, message_text, author)
+            flash("Message added successfully!", "success")
+        except Exception as e:
+            flash(f"Error adding message: {e}", "error")
 
-        if tickets:
-            # Summary metrics
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Total tickets", len(tickets))
-            m2.metric("Open", sum(1 for t in tickets if t['status'] == 'open'))
-            m3.metric("In progress", sum(1 for t in tickets if t['status'] == 'in_progress'))
-            m4.metric("Resolved", sum(1 for t in tickets if t['status'] == 'resolved'))
+    return redirect(url_for("ticket_detail", ticket_id=ticket_id))
 
-            st.markdown("")
 
-            # Filter by status
-            status_filter = st.multiselect(
-                "Filter by status:",
-                options=['open', 'in_progress', 'resolved'],
-                default=['open', 'in_progress', 'resolved']
+# Initialize the database schema and import any pre-existing tickets at startup.
+def startup():
+    try:
+        init_database()
+        result = import_legacy_tickets()
+        if result and result.get("copied"):
+            print(
+                f"Imported {result['copied']} existing ticket(s) "
+                f"from schema {result['schema']}"
             )
+        elif result and result.get("blocked"):
+            print(result["message"])
+    except Exception as e:
+        print(f"Database initialization failed: {e}")
 
-            filtered_tickets = [t for t in tickets if t['status'] in status_filter]
 
-            st.caption(f"Showing {len(filtered_tickets)} of {len(tickets)} tickets")
+startup()
 
-            # Two-column card grid
-            for i in range(0, len(filtered_tickets), 2):
-                cols = st.columns(2)
-                for j, col in enumerate(cols):
-                    if i + j < len(filtered_tickets):
-                        col.markdown(
-                            display_ticket_card(filtered_tickets[i + j]),
-                            unsafe_allow_html=True
-                        )
-        else:
-            st.info("🗒️ No tickets found. Head to **Create New Ticket** in the sidebar to get started!")
-    
-    # Create New Ticket
-    elif action == "Create New Ticket":
-        st.header("Create New Support Ticket")
-        
-        with st.form("new_ticket_form"):
-            title = st.text_input("Ticket Title*", max_chars=255)
-            created_by = st.text_input("Your Email*", max_chars=100)
-            initial_message = st.text_area("Initial Message (optional)", max_chars=1000)
-            
-            submitted = st.form_submit_button("Create Ticket")
-            
-            if submitted:
-                if not title or not created_by:
-                    st.error("Please fill in all required fields (marked with *)")
-                elif '@' not in created_by:
-                    st.error("Please enter a valid email address")
-                else:
-                    try:
-                        ticket_id = create_ticket(title, created_by)
-                        
-                        if initial_message:
-                            add_message(ticket_id, initial_message, created_by)
-                        
-                        st.success(f"✅ Ticket #{ticket_id} created successfully!")
-                        st.balloons()
-                    except Exception as e:
-                        st.error(f"Error creating ticket: {str(e)}")
-    
-    # View Ticket Details
-    elif action == "View Ticket Details":
-        st.header("Ticket Details")
-        
-        tickets = get_all_tickets()
-        
-        if tickets:
-            ticket_options = {f"#{t['ticket_id']}: {t['title']}": t['ticket_id'] for t in tickets}
-            selected_ticket = st.selectbox("Select a ticket:", options=ticket_options.keys())
-            
-            if selected_ticket:
-                ticket_id = ticket_options[selected_ticket]
-                
-                # Get ticket details
-                ticket = next(t for t in tickets if t['ticket_id'] == ticket_id)
-                
-                # Display ticket info
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Status", ticket['status'])
-                with col2:
-                    st.metric("Messages", ticket['message_count'])
-                
-                st.caption(f"Created by {ticket['created_by']} on {ticket['created_at'].strftime('%Y-%m-%d %H:%M')}")
-                
-                # Update status
-                st.subheader("Update Status")
-                new_status = st.selectbox(
-                    "Change status to:",
-                    options=['open', 'in_progress', 'resolved'],
-                    index=['open', 'in_progress', 'resolved'].index(ticket['status'])
-                )
-                
-                if st.button("Update Status"):
-                    if new_status != ticket['status']:
-                        update_ticket_status(ticket_id, new_status)
-                        st.success(f"Status updated to: {new_status}")
-                        st.rerun()
-                    else:
-                        st.info("Status unchanged")
-                
-                st.divider()
-                
-                # Display messages
-                st.subheader("💬 Conversation")
-                messages = get_ticket_messages(ticket_id)
-                
-                for msg in messages:
-                    with st.chat_message("user" if msg['author'] == ticket['created_by'] else "assistant"):
-                        st.markdown(f"**{msg['author']}**")
-                        st.markdown(msg['message_text'])
-                        st.caption(msg['created_at'].strftime('%Y-%m-%d %H:%M:%S'))
-                
-                # Add new message
-                st.subheader("Add Message")
-                with st.form("add_message_form"):
-                    message_text = st.text_area("Your message*", max_chars=1000)
-                    author = st.text_input("Your email*", max_chars=100)
-                    
-                    submitted = st.form_submit_button("Send Message")
-                    
-                    if submitted:
-                        if not message_text or not author:
-                            st.error("Please fill in all required fields")
-                        elif '@' not in author:
-                            st.error("Please enter a valid email address")
-                        else:
-                            try:
-                                add_message(ticket_id, message_text, author)
-                                st.success("Message added successfully!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error adding message: {str(e)}")
-        else:
-            st.info("No tickets available. Create a ticket first!")
 
 if __name__ == "__main__":
-    main()
+    host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", os.getenv("FLASK_RUN_PORT", 8000)))
+    app.run(host=host, port=port, debug=False)
+
+

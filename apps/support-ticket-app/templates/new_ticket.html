@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Create New Support Ticket</h2>
+<div class="panel" style="max-width: 640px;">
+  <a class="backlink" href="{{ url_for('index') }}">← All tickets</a>
+  <form method="post" action="{{ url_for('new_ticket') }}">
+    <label for="title">Ticket Title *</label>
+    <input type="text" id="title" name="title" maxlength="255" required value="{{ form.get('title', '') }}">
+    <label for="created_by">Your Email *</label>
+    <input type="email" id="created_by" name="created_by" maxlength="100" required value="{{ form.get('created_by', '') }}">
+    <label for="initial_message">Initial Message (optional)</label>
+    <textarea id="initial_message" name="initial_message" maxlength="1000">{{ form.get('initial_message', '') }}</textarea>
+    <button type="submit">Create Ticket</button>
+  </form>
+</div>
+{% endblock %}

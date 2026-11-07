@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<a class="backlink" href="{{ url_for('index') }}">← All tickets</a>
+<h2>#{{ ticket['ticket_id'] }} · {{ ticket['title'] }}</h2>
+<div class="detail-grid">
+  <div class="stat"><div class="num">{{ ticket['status'] | status_label }}</div><div class="lbl">Status</div></div>
+  <div class="stat"><div class="num">{{ ticket['message_count'] }}</div><div class="lbl">Messages</div></div>
+</div>
+<p style="color: #6b7280; font-size: 0.85rem;">Created by {{ ticket['created_by'] }} on {{ ticket['created_at'] | dt }}</p>
+<div class="panel">
+  <h2 style="font-size: 1.05rem;">Update Status</h2>
+  <form class="status-form" method="post" action="{{ url_for('update_status', ticket_id=ticket['ticket_id']) }}">
+    <select name="status">
+      <option value="open" {{ 'selected' if ticket['status'] == 'open' else '' }}>Open</option>
+      <option value="in_progress" {{ 'selected' if ticket['status'] == 'in_progress' else '' }}>In Progress</option>
+      <option value="resolved" {{ 'selected' if ticket['status'] == 'resolved' else '' }}>Resolved</option>
+    </select>
+    <button type="submit">Update Status</button>
+  </form>
+</div>
+<div class="panel">
+  <h2 style="font-size: 1.05rem;">💬 Conversation</h2>
+  {% for msg in messages %}
+  <div class="msg">
+    <div class="meta"><strong>{{ msg['author'] }}</strong> · {{ msg['created_at'] | dt }}</div>
+    <div>{{ msg['message_text'] }}</div>
+  </div>
+  {% else %}
+  <p style="color: #6b7280;">No messages yet.</p>
+  {% endfor %}
+</div>
+<div class="panel">
+  <h2 style="font-size: 1.05rem;">Add Message</h2>
+  <form method="post" action="{{ url_for('add_ticket_message', ticket_id=ticket['ticket_id']) }}">
+    <label for="message_text">Your message *</label>
+    <textarea id="message_text" name="message_text" maxlength="1000" required></textarea>
+    <label for="author">Your email *</label>
+    <input type="email" id="author" name="author" maxlength="100" required>
+    <button type="submit">Send Message</button>
+  </form>
+</div>
+{% endblock %}
