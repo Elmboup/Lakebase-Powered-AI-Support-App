@@ -17,6 +17,14 @@ from psycopg2 import sql as pg_sql
 import os
 from datetime import datetime
 from databricks import sdk
+import html as html_lib
+
+# Page configuration
+st.set_page_config(
+    page_title="Support Ticket System",
+    page_icon="🎫",
+    layout="wide"
+)
 
 # Database connection setup
 workspace_client = sdk.WorkspaceClient()
@@ -167,35 +175,107 @@ def update_ticket_status(ticket_id, new_status):
     conn.close()
 
 # UI Components
+def inject_custom_css():
+    """Inject the app's custom stylesheet."""
+    st.markdown(
+        """
+        <style>
+        /* Hero banner */
+        .hero {
+            background: linear-gradient(120deg, #6d28d9 0%, #2563eb 55%, #0ea5e9 100%);
+            border-radius: 16px;
+            padding: 26px 30px;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        .hero h1 { color: #fff; font-size: 1.9rem; font-weight: 700; margin: 0; }
+        .hero p { color: rgba(255, 255, 255, 0.85); margin: 6px 0 0; font-size: 0.95rem; }
+
+        /* Ticket cards */
+        .ticket-card {
+            border: 1px solid rgba(128, 128, 140, 0.35);
+            border-radius: 12px;
+            padding: 14px 18px 12px;
+            margin-bottom: 4px;
+            transition: box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+        .ticket-card:hover {
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+            border-color: rgba(128, 128, 140, 0.6);
+        }
+        .ticket-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .ticket-title { font-size: 1.02rem; font-weight: 600; }
+        .ticket-pills { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+        .pill {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .pill-open { background: #fee2e2; color: #b91c1c; }
+        .pill-in_progress { background: #fef3c7; color: #b45309; }
+        .pill-resolved { background: #d1fae5; color: #047857; }
+        .pill-muted { background: rgba(128, 128, 140, 0.15); color: inherit; font-weight: 500; }
+        .ticket-footer { font-size: 0.78rem; opacity: 0.75; margin-top: 8px; }
+
+        /* Soften Streamlit widgets */
+        div[data-testid="stMetric"] {
+            background: rgba(128, 128, 140, 0.08);
+            border: 1px solid rgba(128, 128, 140, 0.22);
+            border-radius: 12px;
+            padding: 12px 10px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+STATUS_META = {
+    'open': ('Open', '🔴', 'pill-open'),
+    'in_progress': ('In Progress', '🟡', 'pill-in_progress'),
+    'resolved': ('Resolved', '🟢', 'pill-resolved'),
+}
+
+
 def display_ticket_card(ticket):
-    """Display a ticket as a card"""
-    status_colors = {
-        'open': '🔴',
-        'in_progress': '🟡',
-        'resolved': '🟢'
-    }
-    
-    status_icon = status_colors.get(ticket['status'], '⚪')
-    
-    with st.container():
-        col1, col2, col3 = st.columns([3, 1, 1])
-        with col1:
-            st.markdown(f"### {status_icon} {ticket['title']}")
-        with col2:
-            st.caption(f"Status: **{ticket['status']}**")
-        with col3:
-            st.caption(f"💬 {ticket['message_count']} messages")
-        
-        st.caption(f"Created by {ticket['created_by']} on {ticket['created_at'].strftime('%Y-%m-%d %H:%M')}")
-        st.divider()
+    """Render a ticket as a styled card, returning the HTML markup."""
+    label, icon, pill_class = STATUS_META.get(
+        ticket['status'], (ticket['status'], '⚪', 'pill-muted')
+    )
+    title = html_lib.escape(str(ticket['title']))
+    created_by = html_lib.escape(str(ticket['created_by']))
+    return f"""
+    <div class="ticket-card">
+        <div class="ticket-top">
+            <div class="ticket-title">{icon} {title}</div>
+            <div class="ticket-pills">
+                <span class="pill {pill_class}">{html_lib.escape(label)}</span>
+                <span class="pill pill-muted">💬 {ticket['message_count']} messages</span>
+            </div>
+        </div>
+        <div class="ticket-footer">#{ticket['ticket_id']} · Created by {created_by} on {ticket['created_at'].strftime('%Y-%m-%d %H:%M')}</div>
+    </div>
+    """
 
 # Main application
 def main():
     # Initialize database schema and ticket tables
     init_database()
 
-    st.title("🎫 Support Ticket System")
-    st.markdown("*Powered by Databricks Apps & Lakebase*")
+    inject_custom_css()
+
+    st.markdown(
+        """
+        <div class="hero">
+            <h1>🎫 Support Ticket System</h1>
+            <p>Track, discuss, and resolve support tickets — powered by Databricks Apps &amp; Lakebase</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     
     # Sidebar for actions
     with st.sidebar:
@@ -208,25 +288,41 @@ def main():
     # View All Tickets
     if action == "View All Tickets":
         st.header("All Support Tickets")
-        
+
         tickets = get_all_tickets()
-        
+
         if tickets:
+            # Summary metrics
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total tickets", len(tickets))
+            m2.metric("Open", sum(1 for t in tickets if t['status'] == 'open'))
+            m3.metric("In progress", sum(1 for t in tickets if t['status'] == 'in_progress'))
+            m4.metric("Resolved", sum(1 for t in tickets if t['status'] == 'resolved'))
+
+            st.markdown("")
+
             # Filter by status
             status_filter = st.multiselect(
                 "Filter by status:",
                 options=['open', 'in_progress', 'resolved'],
                 default=['open', 'in_progress', 'resolved']
             )
-            
+
             filtered_tickets = [t for t in tickets if t['status'] in status_filter]
-            
+
             st.caption(f"Showing {len(filtered_tickets)} of {len(tickets)} tickets")
-            
-            for ticket in filtered_tickets:
-                display_ticket_card(ticket)
+
+            # Two-column card grid
+            for i in range(0, len(filtered_tickets), 2):
+                cols = st.columns(2)
+                for j, col in enumerate(cols):
+                    if i + j < len(filtered_tickets):
+                        col.markdown(
+                            display_ticket_card(filtered_tickets[i + j]),
+                            unsafe_allow_html=True
+                        )
         else:
-            st.info("No tickets found. Create your first ticket!")
+            st.info("🗒️ No tickets found. Head to **Create New Ticket** in the sidebar to get started!")
     
     # Create New Ticket
     elif action == "Create New Ticket":
