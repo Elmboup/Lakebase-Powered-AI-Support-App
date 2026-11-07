@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Support Ticket System</title>
+  <link rel="icon" href="https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fstatic.vecteezy.com%2Fsystem%2Fresources%2Fpreviews%2F028%2F302%2F335%2Fnon_2x%2Fsupport-ticket-icon-vector.jpg&f=1&nofb=1&ipt=ef805b54bea3065d9d731db69806ce28d81fdff0959e66bee90a76c2f027a56e&ipo=images">
   <style>
     :root{
       --bg:#f4f6fb; --card:#ffffff; --border:rgba(15,23,42,.08); --border-strong:rgba(15,23,42,.14);
@@ -22,7 +23,8 @@
     /* top navigation */
     .topnav{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:22px;padding:12px 26px;background:rgba(255,255,255,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
     .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.05rem;color:var(--text)}
-    .brand .logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:1.05rem;background:linear-gradient(135deg,var(--brand),var(--brand-2));box-shadow:0 4px 12px rgba(79,70,229,.35)}
+    .brand .logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:1.05rem;background:linear-gradient(135deg,var(--brand),var(--brand-2));box-shadow:0 4px 12px rgba(79,70,229,.35);overflow:hidden}
+    .brand .logo img{width:100%;height:100%;border-radius:inherit;object-fit:cover;display:block}
     .navlinks{display:flex;gap:6px;margin-left:6px}
     .navlinks a{padding:8px 14px;border-radius:999px;color:var(--muted);font-weight:600;font-size:.9rem}
     .navlinks a:hover{background:var(--soft);color:var(--text)}
@@ -115,7 +117,7 @@
 </head>
 <body>
 <nav class="topnav">
-  <a class="brand" href="{{ url_for('index') }}"><span class="logo">🎫</span> Support Desk</a>
+  <a class="brand" href="{{ url_for('index') }}"><span class="logo"><img src="https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fstatic.vecteezy.com%2Fsystem%2Fresources%2Fpreviews%2F028%2F302%2F335%2Fnon_2x%2Fsupport-ticket-icon-vector.jpg&f=1&nofb=1&ipt=ef805b54bea3065d9d731db69806ce28d81fdff0959e66bee90a76c2f027a56e&ipo=images" alt="Support tickets"></span> Support Desk</a>
   <div class="navlinks">
     <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">Tickets</a>
     <a href="{{ url_for('new_ticket') }}" class="{{ 'active' if request.endpoint == 'new_ticket' else '' }}">New Ticket</a>
